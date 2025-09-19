@@ -310,19 +310,6 @@ elif st.session_state.current_page == "✏️ スキルシート更新":
     import os
     update_path = os.path.join(os.path.dirname(__file__), "UpdatePageEnhanced.py")
     exec(open(update_path, encoding="utf-8").read())
-    # 4番（PythonのScriptsフォルダにパスを通す）を試したところ、以下のエラーが表示されました:
-    #
-    # PS C:\Users\MetokiMasato> C:\Users\MetokiMasato\AppData\Local\Programs\Python\PythonXX\Scripts
-    # C:\Users\MetokiMasato\AppData\Local\Programs\Python\PythonXX\Scripts : 用語 'C:\Users\MetokiMasato\AppData\Local\Programs\Python\PythonXX\Scripts' は、コマンドレット、関数、スクリプト ファイル、または操作可能なプログラムの名前として認識されません。名前が正しく記述されていることを確認し、パスが含まれている場合はそのパスが正しいことを確認してから、再試行してください。
-    # 発生場所 行:1 文字:1
-    # + C:\Users\MetokiMasato\AppData\Local\Programs\Python\PythonXX\Scripts
-    # + ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    #     + CategoryInfo          : ObjectNotFound: (C:\Users\Metoki...ythonXX\Scripts:String) [], CommandNotFoundException
-    #     + FullyQualifiedErrorId : CommandNotFoundException
-    #
-    # → このエラーは、「パスをコマンドとして実行」してしまったため発生しています。
-    #   パスを通すには、環境変数「Path」にScriptsフォルダのパスを追加してください。
-    #   追加後、新しいコマンドプロンプトやPowerShellを開き直してから「streamlit run app.py」などのコマンドを実行してください。
 
 
 
