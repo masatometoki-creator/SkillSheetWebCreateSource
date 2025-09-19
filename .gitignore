@@ -1,0 +1,22 @@
+# Python bytecode
+__pycache__/
+*.pyc
+
+# VSCodeの設定フォルダ
+.vscode/
+
+# Streamlitのキャッシュフォルダ
+.streamlit/
+
+# Excelファイル（成果物など）
+*.xlsx
+
+# CSVファイル（成果物など）
+*.csv
+
+# ログファイル
+*.log
+
+# Windowsシステムファイル
+Thumbs.db
+desktop.ini
