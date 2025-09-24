@@ -17,6 +17,13 @@ st.set_page_config(
     }
 )
 
+# ネットワークアクセスを有効化
+import os
+if 'STREAMLIT_SERVER_ADDRESS' not in os.environ:
+    os.environ['STREAMLIT_SERVER_ADDRESS'] = '0.0.0.0'
+if 'STREAMLIT_SERVER_PORT' not in os.environ:
+    os.environ['STREAMLIT_SERVER_PORT'] = '8501'
+
 # --- サイドバーの背景色やラジオボタンの視認性向上のためのカスタムCSS ---
 st.markdown(
     """
