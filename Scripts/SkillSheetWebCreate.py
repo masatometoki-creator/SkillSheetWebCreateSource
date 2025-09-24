@@ -840,3 +840,5 @@ with st.container():
                     st.error("データベースの保存に失敗しました。")
                     st.session_state["db_saved"] = False
                     st.session_state["db_save_btn_disabled"] = False
+
+

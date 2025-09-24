@@ -1,6 +1,8 @@
 import streamlit as st
 import traceback  # 追加
 import pandas as pd  # 追加
+import os  # ← ここを追加
+import openpyxl  # ← ここに追加
 
 # ページ設定
 st.set_page_config(
@@ -297,19 +299,13 @@ if st.session_state.current_page == "🏠 ホーム":
 
 elif st.session_state.current_page == "📝 スキルシート作成":
     # スキルシート作成ページの内容を直接実行
-    import os
     skill_sheet_path = os.path.join(os.path.dirname(__file__), "SkillSheetWebCreate.py")
     exec(open(skill_sheet_path, encoding="utf-8").read())
 elif st.session_state.current_page == "📊 データ参照・管理":
     # データ参照ページの内容を直接実行
-    import os
     data_view_path = os.path.join(os.path.dirname(__file__), "DataViewPage.py")
     exec(open(data_view_path, encoding="utf-8").read())
 elif st.session_state.current_page == "✏️ スキルシート更新":
     # スキルシート更新ページの内容を直接実行
-    import os
     update_path = os.path.join(os.path.dirname(__file__), "UpdatePageEnhanced.py")
     exec(open(update_path, encoding="utf-8").read())
-
-
-
