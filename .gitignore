@@ -9,10 +9,12 @@ __pycache__/
 .streamlit/
 
 # Excelファイル（成果物など）
-*.xlsx
+# *.xlsx
+!Scripts/**/*.xlsx
 
 # CSVファイル（成果物など）
-*.csv
+# *.csv
+!Scripts/**/*.csv
 
 # ログファイル
 *.log
