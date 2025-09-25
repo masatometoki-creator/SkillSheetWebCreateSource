@@ -3,6 +3,7 @@ import traceback  # 追加
 import pandas as pd  # 追加
 import os  # ← ここを追加
 import openpyxl  # ← ここに追加
+from io import BytesIO
 
 # ページ設定
 st.set_page_config(
@@ -316,3 +317,7 @@ elif st.session_state.current_page == "✏️ スキルシート更新":
     # スキルシート更新ページの内容を直接実行
     update_path = os.path.join(os.path.dirname(__file__), "UpdatePageEnhanced.py")
     exec(open(update_path, encoding="utf-8").read())
+
+
+
+   
