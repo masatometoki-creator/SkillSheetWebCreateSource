@@ -56,12 +56,12 @@ b64_SKILLSHEET_TEMPLATE = """
 
 def get_template_path():
     """
-    SkillSheetTemplate.xlsx を Scripts/Template/SkillSheetTemplate.xlsx から優先的に探す。
+    SkillSheetTemplate.xlsx を Scripts/templates/SkillSheetTemplate.xlsx から優先的に探す。
     それ以外は従来通りのパスもサーチ。
     """
     base_dir = os.path.dirname(os.path.abspath(__file__))
     # Templateディレクトリを優先
-    template_dir = os.path.join(base_dir, "Template")
+    template_dir = os.path.join(base_dir, "templates")
     template_filename = "SkillSheetTemplate.xlsx"
     path_template = os.path.join(template_dir, template_filename)
     # 旧来のパスも残す
@@ -617,7 +617,7 @@ with st.container():
                 else:
                     st.error(
                         "テンプレートファイルが見つかりません。\n"
-                        "SkillSheetTemplate.xlsx を Scripts/Template フォルダに配置してください。\n"
+                        "SkillSheetTemplate.xlsx を Scripts/templatesフォルダに配置してください。\n"
                         f"現在の検索パス: {TEMPLATE_PATH or '未検出'}"
                     )
             else:
