@@ -734,31 +734,7 @@ with st.container():
                             cell = f"{get_column_letter(col)}{BASE_ROW_MAP['phase']+row_offset}"
                             mark = "●" if proj.get("phases", {}).get(label) else ""
                             ws[cell] = mark
-                    ENV_ROW_OFFSET = 2
-                    ENV_BLOCK_OFFSET = 13
                     
-                    # ヘッダー位置をキャッシュする
-                    header_cache = {}
-                    
-                    # 最初のプロジェクトでヘッダー位置を検索・キャッシュ
-                    if idx == 0:
-                        for header_text, env_key in ENV_HEADERS:
-                            header = find_cell_by_value(ws, header_text)
-                            if header is not None:
-                                header_cache[header_text] = (header.row, header.column)
-                    
-                    # キャッシュされたヘッダー位置を使用
-                    for header_text, env_key in ENV_HEADERS:
-                        if header_text not in header_cache:
-                            continue
-                        base_row, col = header_cache[header_text]
-                        base_row = base_row + ENV_ROW_OFFSET + row_offset
-                        values = proj.get(env_key, [])
-                        for i, v in enumerate([val for val in values if isinstance(val, str) and val.strip()][:ENV_MAX]):
-                            try:
-                                ws.cell(row=base_row + i, column=col, value=v)
-                            except Exception:
-                                pass
                     if reordered_projects:
                         first_proj = reordered_projects[0]
                         ws["D37"] = first_proj.get("period_start", "")
