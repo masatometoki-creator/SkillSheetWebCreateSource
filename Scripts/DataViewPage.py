@@ -199,7 +199,8 @@ def display_saved_data():
 
             projects = pd.read_sql_query(
                 """
-                SELECT period_start, period_end, system_name, role, industry, work_content, headcount
+                SELECT period_start, period_end, system_name, role, industry, work_content, phases, headcount,
+                       env_langs, env_tools, env_dbs, env_oss
                 FROM projects WHERE user_info_id = ?
                 """,
                 conn,
