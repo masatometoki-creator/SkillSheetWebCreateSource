@@ -35,7 +35,7 @@ st.markdown("---")
 
 # データベースからユーザー一覧を取得
 def get_user_list():
-    """ユーザー一覧を取得"""
+    """データ一覧を取得"""
     conn = sqlite3.connect(DB_PATH)
     try:
         cursor = conn.cursor()
@@ -55,17 +55,17 @@ def get_user_list():
         df = pd.read_sql_query(query, conn)
         return df
     except Exception as e:
-        st.error(f"ユーザー一覧の取得に失敗しました: {str(e)}")
+        st.error(f"データ一覧の取得に失敗しました: {str(e)}")
         return pd.DataFrame()
     finally:
         conn.close()
 
 # ユーザー選択
-st.subheader("更新するユーザーを選択してください")
+st.subheader("更新するデータを選択してください")
 user_df = get_user_list()
 
 if user_df.empty:
-    st.warning("データベースにユーザー情報がありません。")
+    st.warning("データベースに情報がありません。")
 else:
     # ユーザー選択用のセレクトボックス
     user_options = []
@@ -74,7 +74,7 @@ else:
         user_options.append((display_name, row['id']))
     
     selected_user = st.selectbox(
-        "ユーザーを選択:",
+        "データを選択:",
         options=[opt[1] for opt in user_options],
         format_func=lambda x: next(opt[0] for opt in user_options if opt[1] == x),
         key="selected_user"
@@ -443,7 +443,7 @@ else:
         st.markdown("### データ出力")
         excel_btn_col, _ = st.columns([1, 9])
         with excel_btn_col:
-            if st.button("このユーザーの情報をExcel出力", key="export_excel"):
+            if st.button("このデータをExcel出力", key="export_excel"):
                 excel_bytes, output_path = export_user_to_excel(user_data, skills_data, projects_data)
                 if excel_bytes:
                     st.download_button(
@@ -915,7 +915,8 @@ else:
                             return str(val)
                         period_start = st.text_input("開始年月 (yyyy/MM)", key="new_period_start")
                         period_end = st.text_input("終了年月 (yyyy/MM)", key="new_period_end")
-                        system_name = st.text_input("システム名・作業内容", key="new_system_name")
+                        system_name_work_content = st.text_input("システム名・作業内容", key="new_system_name_work_content")
+
                         role = st.selectbox("役割", [
                             "CNSL(コンサルタント)", "PMO(プロジェクトマネジメントオフィス)", 
                             "PM(プロジェクトマネージャー)", "PL(プロジェクトリーダー)",
@@ -1020,20 +1021,21 @@ else:
                                     """, (
                                         user_id, project_data['period_start'], project_data['period_end'],
                                         project_data['system_name'], project_data['role'], project_data['industry'],
-                                        '', str(phases) if not isinstance(phases, dict) else '', project_data['headcount'],
+                                        project_data['work_content'], str(phases) if not isinstance(phases, dict) else '', project_data['headcount'],
                                         project_data['env_langs'], project_data['env_tools'],
                                         project_data['env_dbs'], project_data['env_oss']
                                     ))
+
                                 else:
                                     cursor.execute("""
                                         INSERT INTO projects (basic_info_id, period_start, period_end, system_name,
                                                            role, industry, work_content, phases, headcount,
                                                            env_langs, env_tools, env_dbs, env_oss)
                                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                                    """, (
+                                     """, (
                                         user_id, project_data['period_start'], project_data['period_end'],
                                         project_data['system_name'], project_data['role'], project_data['industry'],
-                                        '', str(phases) if not isinstance(phases, dict) else '', project_data['headcount'],
+                                        project_data['work_content'], str(phases) if not isinstance(phases, dict) else '', project_data['headcount'],
                                         project_data['env_langs'], project_data['env_tools'],
                                         project_data['env_dbs'], project_data['env_oss']
                                     ))
@@ -1092,7 +1094,7 @@ else:
                         project_data = {
                             'period_start': period_start,
                             'period_end': period_end,
-                            'system_name': system_name,
+                            'system_name': system_name_work_content,
                             'role': role,
                             'industry': industry,
                             'headcount': headcount,
@@ -1101,7 +1103,8 @@ else:
                             'env_dbs': env_inputs.get('env_dbs', ''),
                             'env_oss': env_inputs.get('env_oss', '')
                         }
-                        project_data['work_content'] = ''
+                        project_data['work_content'] = system_name_work_content
+
                         if save_new_project(selected_user, project_data):
                             st.success("案件情報を追加しました！")
                             if update_skills_from_project(selected_user, project_data, env_years_dicts):
@@ -1111,8 +1114,6 @@ else:
                             st.rerun()
                         else:
                             st.error("案件情報の保存に失敗しました。")
-            else:
-                st.info("このユーザーには案件情報がありません。")
         else:
             st.error("ユーザー情報の取得に失敗しました。")
 
