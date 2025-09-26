@@ -95,10 +95,15 @@ st.markdown(
 nav_cols = st.columns([1, 8])
 with nav_cols[0]:
     if st.button("🏠 ホームへ戻る", key="go_home_from_dataview"):
+        # セッション状態をクリア
+        if 'selected_id' in st.session_state:
+            del st.session_state.selected_id
+        if 'show_data' in st.session_state:
+            del st.session_state.show_data
         st.session_state.current_page = "🏠 ホーム"
         st.rerun()
 
-st.markdown("---")
+
 
 # データベースからデータを取得して表示する関数
 def _table_exists(conn: sqlite3.Connection, table: str) -> bool:
@@ -151,11 +156,23 @@ def display_saved_data():
                 "<div class='card-section'><div class='card-title'>詳細データ選択</div>",
                 unsafe_allow_html=True
             )
+            
+            # セッション状態から現在の選択を取得、またはデフォルト値を設定
+            if 'selected_id' not in st.session_state:
+                st.session_state.selected_id = users_df["id"].tolist()[0] if not users_df.empty else None
+            
             selected_id = st.selectbox(
                 "詳細を表示するデータを選択してください:",
                 options=users_df["id"].tolist(),
+                index=users_df["id"].tolist().index(st.session_state.selected_id) if st.session_state.selected_id in users_df["id"].tolist() else 0,
                 format_func=lambda x: f"ID: {x} - {users_df[users_df['id']==x]['name'].iloc[0]} ({users_df[users_df['id']==x]['created_at'].iloc[0]})",
+                key="data_selector"
             )
+            
+            # 選択されたIDをセッション状態に保存（変更時のみ）
+            if selected_id != st.session_state.selected_id:
+                st.session_state.selected_id = selected_id
+            
             st.markdown("</div>", unsafe_allow_html=True)
 
         if not selected_id:
@@ -186,7 +203,6 @@ def display_saved_data():
                         st.markdown("**資格**")
                         st.write(quals)
 
-            # skills
             skills = pd.read_sql_query(
                 "SELECT skill_type, skill_name, experience_years FROM skills WHERE user_info_id = ?",
                 conn,
@@ -291,16 +307,21 @@ def display_saved_data():
     finally:
         conn.close()
 
-# --- データ表示ボタンを目立つカードで ---
 with st.container():
     st.markdown(
         "<div class='card-section' style='text-align:center;'><div class='card-title'>データ表示</div>",
         unsafe_allow_html=True
     )
     if st.button("保存されたデータを表示", type="primary"):
-        display_saved_data()
+        # セッション状態を初期化してデータ表示状態に設定
+        if 'selected_id' in st.session_state:
+            del st.session_state.selected_id
+        st.session_state.show_data = True
     st.markdown("</div>", unsafe_allow_html=True)
 
+# データ表示状態の場合、データを表示
+if st.session_state.get('show_data', False):
+    display_saved_data()
 # --- データ削除機能をカードで ---
 st.markdown("<div class='card-section'><div class='card-title'>データ管理</div>", unsafe_allow_html=True)
 with st.container():
