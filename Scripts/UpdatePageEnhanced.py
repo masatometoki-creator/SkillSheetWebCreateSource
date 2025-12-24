@@ -24,35 +24,35 @@ with nav_cols[0]:
 
 st.markdown("---")
 
-# 編集モードの選択
-edit_mode = st.radio(
-    "編集モードを選択してください:",
-    ["基本情報の編集", "案件情報の編集", "新しい案件情報の追加"],
-    key="edit_mode"
-)
-
-st.markdown("---")
-
 # データベースからユーザー一覧を取得
 def get_user_list():
-    """データ一覧を取得"""
+    """データ一覧を取得（ログインユーザーが作成したスキルシートのみ）"""
     conn = sqlite3.connect(DB_PATH)
     try:
         cursor = conn.cursor()
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='user_info'")
+        login_user_id = st.session_state.get('user_id')
+        
         if cursor.fetchone():
-            query = """
-                SELECT id, name, name_kana, created_at
-                FROM user_info
-                ORDER BY created_at DESC
-            """
+            # ログインユーザーが作成したスキルシートのみ表示
+            if login_user_id:
+                query = """
+                    SELECT id, name, name_kana, created_at
+                    FROM user_info
+                    WHERE login_user_id = ?
+                    ORDER BY created_at DESC
+                """
+                df = pd.read_sql_query(query, conn, params=[login_user_id])
+            else:
+                df = pd.DataFrame()
         else:
+            # 旧スキーマの場合は全件表示（後方互換性のため）
             query = """
                 SELECT id, name, name_kana, created_at
                 FROM basic_info
                 ORDER BY created_at DESC
             """
-        df = pd.read_sql_query(query, conn)
+            df = pd.read_sql_query(query, conn)
         return df
     except Exception as e:
         st.error(f"データ一覧の取得に失敗しました: {str(e)}")
@@ -66,6 +66,7 @@ user_df = get_user_list()
 
 if user_df.empty:
     st.warning("データベースに情報がありません。")
+    selected_user = None
 else:
     # ユーザー選択用のセレクトボックス
     user_options = []
@@ -79,8 +80,19 @@ else:
         format_func=lambda x: next(opt[0] for opt in user_options if opt[1] == x),
         key="selected_user"
     )
-    
-    if selected_user:
+
+st.markdown("---")
+
+# 編集モードの選択
+edit_mode = st.radio(
+    "編集モードを選択してください:",
+    ["基本情報の編集", "案件情報の編集", "新しい案件情報の追加"],
+    key="edit_mode"
+)
+
+st.markdown("---")
+
+if selected_user:
         # ユーティリティ: スキル名の正規化（記号除去・空白トリム）
         def normalize_skill_name(name):
             if name is None:

@@ -118,17 +118,26 @@ def display_saved_data():
     conn = sqlite3.connect(DB_PATH)
     try:
         use_new = _table_exists(conn, "user_info")
+        # ログインユーザーIDを取得
+        login_user_id = st.session_state.get('user_id')
 
         if use_new:
-            users_df = pd.read_sql_query(
-                """
-                SELECT id, name, name_kana, gender, birth_date, final_education, created_at
-                FROM user_info
-                ORDER BY created_at DESC
-                """,
-                conn,
-            )
+            # ログインユーザーが作成したスキルシートのみ表示
+            if login_user_id:
+                users_df = pd.read_sql_query(
+                    """
+                    SELECT id, name, name_kana, gender, birth_date, final_education, created_at
+                    FROM user_info
+                    WHERE login_user_id = ?
+                    ORDER BY created_at DESC
+                    """,
+                    conn,
+                    params=[login_user_id]
+                )
+            else:
+                users_df = pd.DataFrame()
         else:
+            # 旧スキーマの場合は全件表示（後方互換性のため）
             users_df = pd.read_sql_query(
                 """
                 SELECT id, name, name_kana, gender, birth_date, final_education, created_at
@@ -186,15 +195,36 @@ def display_saved_data():
         col1, col2 = st.columns([1, 1])
 
         if use_new:
-            detail = pd.read_sql_query(
-                "SELECT * FROM user_info WHERE id = ?",
-                conn,
-                params=[selected_id],
-            )
+            # ログインユーザーが作成したスキルシートのみ表示
+            login_user_id = st.session_state.get('user_id')
+            if login_user_id:
+                detail = pd.read_sql_query(
+                    "SELECT * FROM user_info WHERE id = ? AND login_user_id = ?",
+                    conn,
+                    params=[selected_id, login_user_id],
+                )
+            else:
+                detail = pd.DataFrame()
             if not detail.empty:
                 with col1:
                     st.markdown("**基本情報**")
-                    st.json(detail.iloc[0].to_dict())
+                    row = detail.iloc[0]
+                    if pd.notna(row.get('name')):
+                        st.write(f"**氏名:** {row['name']}")
+                    if pd.notna(row.get('name_kana')):
+                        st.write(f"**カナ:** {row['name_kana']}")
+                    if pd.notna(row.get('gender')):
+                        st.write(f"**性別:** {row['gender']}")
+                    if pd.notna(row.get('birth_date')):
+                        st.write(f"**生年月日:** {row['birth_date']}")
+                    if pd.notna(row.get('final_education')):
+                        st.write(f"**最終学歴:** {row['final_education']}")
+                    if pd.notna(row.get('nearest_station')):
+                        st.write(f"**最寄り駅:** {row['nearest_station']}")
+                    if pd.notna(row.get('access_method')):
+                        st.write(f"**交通手段:** {row['access_method']}")
+                    if pd.notna(row.get('access_time')):
+                        st.write(f"**所要時間:** {row['access_time']}分")
 
                 # 資格はuser_info.qualificationsに保持（文字列）
                 quals = detail.iloc[0]["qualifications"] if not detail.empty else ""
@@ -203,29 +233,93 @@ def display_saved_data():
                         st.markdown("**資格**")
                         st.write(quals)
 
-            skills = pd.read_sql_query(
-                "SELECT skill_type, skill_name, experience_years FROM skills WHERE user_info_id = ?",
-                conn,
-                params=[selected_id],
-            )
+            if not detail.empty:
+                skills = pd.read_sql_query(
+                    "SELECT skill_type, skill_name, experience_years FROM skills WHERE user_info_id = ?",
+                    conn,
+                    params=[selected_id],
+                )
+            else:
+                skills = pd.DataFrame()
             if not skills.empty:
                 st.markdown("---")
                 st.markdown("**スキル**")
                 st.dataframe(skills, use_container_width=True, hide_index=True)
 
-            projects = pd.read_sql_query(
-                """
-                SELECT period_start, period_end, system_name, role, industry, work_content, phases, headcount,
-                       env_langs, env_tools, env_dbs, env_oss
-                FROM projects WHERE user_info_id = ?
-                """,
-                conn,
-                params=[selected_id],
-            )
+            if not detail.empty:
+                projects = pd.read_sql_query(
+                    """
+                    SELECT period_start, period_end, system_name, role, industry, work_content, phases, headcount,
+                           env_langs, env_tools, env_dbs, env_oss
+                    FROM projects WHERE user_info_id = ?
+                    """,
+                    conn,
+                    params=[selected_id],
+                )
+            else:
+                projects = pd.DataFrame()
             if not projects.empty:
                 st.markdown("---")
                 st.markdown("**職務経歴**")
-                st.dataframe(projects, use_container_width=True, hide_index=True)
+                # phasesカラムを処理して表示用に変換
+                PHASE_LABELS = [
+                    "環境構築", "要件", "基本", "詳細", "製造", "単体", "結合", "総合", "保守運用", "他"
+                ]
+                projects_display = projects.copy()
+                
+                def parse_phases(phases_val):
+                    """phasesの値を解析して辞書形式に変換"""
+                    if pd.isna(phases_val) or phases_val == '':
+                        return {label: False for label in PHASE_LABELS}
+                    
+                    try:
+                        import ast
+                        import json
+                        # 文字列の場合、JSONまたはPythonリテラルとして解析
+                        if isinstance(phases_val, str):
+                            # JSON形式を試す
+                            try:
+                                phases_dict = json.loads(phases_val)
+                            except:
+                                # Pythonリテラルとして解析
+                                try:
+                                    phases_dict = ast.literal_eval(phases_val)
+                                except:
+                                    # リスト形式の場合
+                                    if phases_val.startswith('[') and phases_val.endswith(']'):
+                                        phases_list = ast.literal_eval(phases_val)
+                                        phases_dict = {label: label in phases_list for label in PHASE_LABELS}
+                                    else:
+                                        return {label: False for label in PHASE_LABELS}
+                        else:
+                            phases_dict = phases_val
+                        
+                        # 辞書形式の場合
+                        if isinstance(phases_dict, dict):
+                            result = {}
+                            for label in PHASE_LABELS:
+                                # true/falseまたは1/0をチェック
+                                val = phases_dict.get(label, False)
+                                result[label] = val in [True, 1, 'true', 'True', '1']
+                            return result
+                        # リスト形式の場合（工程名のリスト）
+                        elif isinstance(phases_dict, list):
+                            return {label: label in phases_dict for label in PHASE_LABELS}
+                        else:
+                            return {label: False for label in PHASE_LABELS}
+                    except Exception as e:
+                        return {label: False for label in PHASE_LABELS}
+                
+                # phasesカラムを解析して各工程の列に展開
+                if 'phases' in projects_display.columns:
+                    phases_data = projects_display['phases'].apply(parse_phases)
+                    # 各工程の列を追加（true→●、false→空白）
+                    for label in PHASE_LABELS:
+                        projects_display[label] = phases_data.apply(lambda x: '●' if x.get(label, False) else '')
+                    # 元のphasesカラムを削除
+                    projects_display = projects_display.drop(columns=['phases'])
+                
+                st.dataframe(projects_display, use_container_width=True, hide_index=True)
         else:
             # 旧スキーマ
             basic_detail = pd.read_sql_query(
@@ -236,7 +330,23 @@ def display_saved_data():
             if not basic_detail.empty:
                 with col1:
                     st.markdown("**基本情報**")
-                    st.json(basic_detail.iloc[0].to_dict())
+                    row = basic_detail.iloc[0]
+                    if pd.notna(row.get('name')):
+                        st.write(f"**氏名:** {row['name']}")
+                    if pd.notna(row.get('name_kana')):
+                        st.write(f"**カナ:** {row['name_kana']}")
+                    if pd.notna(row.get('gender')):
+                        st.write(f"**性別:** {row['gender']}")
+                    if pd.notna(row.get('birth_date')):
+                        st.write(f"**生年月日:** {row['birth_date']}")
+                    if pd.notna(row.get('final_education')):
+                        st.write(f"**最終学歴:** {row['final_education']}")
+                    if pd.notna(row.get('nearest_station')):
+                        st.write(f"**最寄り駅:** {row['nearest_station']}")
+                    if pd.notna(row.get('access_method')):
+                        st.write(f"**交通手段:** {row['access_method']}")
+                    if pd.notna(row.get('access_time')):
+                        st.write(f"**所要時間:** {row['access_time']}分")
 
             qualifications = pd.read_sql_query(
                 "SELECT qualification FROM qualifications WHERE basic_info_id = ?",
@@ -338,10 +448,21 @@ with st.container():
             cursor = conn.cursor()
             try:
                 # 新スキーマ優先で削除。なければ旧スキーマを削除
+                login_user_id = st.session_state.get('user_id')
                 if _table_exists(conn, "user_info"):
-                    cursor.execute("DELETE FROM skills WHERE user_info_id = ?", (delete_id,))
-                    cursor.execute("DELETE FROM projects WHERE user_info_id = ?", (delete_id,))
-                    cursor.execute("DELETE FROM user_info WHERE id = ?", (delete_id,))
+                    # ログインユーザーが作成したスキルシートのみ削除可能
+                    if login_user_id:
+                        cursor.execute("SELECT id FROM user_info WHERE id = ? AND login_user_id = ?", (delete_id, login_user_id))
+                        if cursor.fetchone():
+                            cursor.execute("DELETE FROM skills WHERE user_info_id = ?", (delete_id,))
+                            cursor.execute("DELETE FROM projects WHERE user_info_id = ?", (delete_id,))
+                            cursor.execute("DELETE FROM user_info WHERE id = ?", (delete_id,))
+                            conn.commit()
+                            st.success(f"ID {delete_id} のデータを削除しました。")
+                        else:
+                            st.error("このデータを削除する権限がありません。")
+                    else:
+                        st.error("ログインが必要です。")
                 else:
                     cursor.execute("DELETE FROM qualifications WHERE basic_info_id = ?", (delete_id,))
                     cursor.execute("DELETE FROM languages WHERE basic_info_id = ?", (delete_id,))
@@ -350,9 +471,8 @@ with st.container():
                     cursor.execute("DELETE FROM machines WHERE basic_info_id = ?", (delete_id,))
                     cursor.execute("DELETE FROM projects WHERE basic_info_id = ?", (delete_id,))
                     cursor.execute("DELETE FROM basic_info WHERE id = ?", (delete_id,))
-                
-                conn.commit()
-                st.success(f"ID {delete_id} のデータを削除しました。")
+                    conn.commit()
+                    st.success(f"ID {delete_id} のデータを削除しました。")
             except Exception as e:
                 st.error(f"削除エラー: {str(e)}")
             finally:

@@ -4,6 +4,8 @@ import pandas as pd  # 追加
 import os  # ← ここを追加
 import openpyxl  # ← ここに追加
 from io import BytesIO
+import hashlib
+import sqlite3
 
 # ページ設定
 st.set_page_config(
@@ -24,6 +26,169 @@ if 'STREAMLIT_SERVER_ADDRESS' not in os.environ:
     os.environ['STREAMLIT_SERVER_ADDRESS'] = '0.0.0.0'
 if 'STREAMLIT_SERVER_PORT' not in os.environ:
     os.environ['STREAMLIT_SERVER_PORT'] = '8501'
+
+# --- ログイン認証機能 ---
+DB_PATH = os.path.join(os.path.dirname(__file__), "skillsheet_data.db")
+
+def hash_password(password):
+    """パスワードをハッシュ化"""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def init_users_table():
+    """ユーザー管理テーブルを初期化"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                login_id TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                username TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        # デフォルトユーザーが存在しない場合は作成
+        cursor.execute("SELECT COUNT(*) FROM users")
+        if cursor.fetchone()[0] == 0:
+            cursor.execute('''
+                INSERT INTO users (login_id, password_hash, username)
+                VALUES (?, ?, ?)
+            ''', ('admin', hash_password('admin123'), '管理者'))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        st.error(f"ユーザーテーブルの初期化エラー: {str(e)}")
+    finally:
+        conn.close()
+
+def authenticate_user(login_id, password):
+    """ユーザー認証"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT id, login_id, password_hash, username FROM users WHERE login_id = ?
+        ''', (login_id,))
+        user = cursor.fetchone()
+        if user and hash_password(password) == user[2]:
+            return {'id': user[0], 'login_id': user[1], 'username': user[3]}
+        return None
+    except Exception as e:
+        st.error(f"認証エラー: {str(e)}")
+        return None
+    finally:
+        conn.close()
+
+# ユーザーテーブルを初期化
+init_users_table()
+
+# セッション状態の初期化
+if 'authenticated' not in st.session_state:
+    st.session_state.authenticated = False
+if 'login_error' not in st.session_state:
+    st.session_state.login_error = False
+if 'user_id' not in st.session_state:
+    st.session_state.user_id = None
+if 'username' not in st.session_state:
+    st.session_state.username = None
+
+# ログイン画面
+def show_login_page():
+    """ログイン画面を表示"""
+    st.markdown(
+        """
+        <style>
+        .login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 80vh;
+        }
+        .login-box {
+            background: linear-gradient(120deg, #e3f2fd 80%, #bbdefb 100%);
+            border-radius: 1.5rem;
+            box-shadow: 0 4px 20px rgba(25, 118, 210, 0.15);
+            padding: 3rem 4rem;
+            border: 2px solid #1976d2;
+            max-width: 450px;
+            width: 100%;
+        }
+        .login-title {
+            color: #1976d2;
+            font-weight: bold;
+            font-size: 2rem;
+            text-align: center;
+            margin-bottom: 2rem;
+            letter-spacing: 0.05em;
+        }
+        .login-input {
+            margin-bottom: 1.5rem;
+        }
+        .login-button {
+            width: 100%;
+            margin-top: 1rem;
+        }
+        .error-message {
+            color: #e53935;
+            background-color: #ffebee;
+            padding: 0.8rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+            border: 1px solid #e53935;
+            text-align: center;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    
+    st.markdown('<div class="login-container">', unsafe_allow_html=True)
+    st.markdown('<div class="login-box">', unsafe_allow_html=True)
+    st.markdown('<div class="login-title">🔐 ログイン</div>', unsafe_allow_html=True)
+    
+    if st.session_state.login_error:
+        st.markdown(
+            '<div class="error-message">IDまたはパスワードが正しくありません。</div>',
+            unsafe_allow_html=True
+        )
+    
+    with st.form("login_form"):
+        login_id = st.text_input("ID", key="login_id_input", help="ログインIDを入力してください")
+        login_password = st.text_input("パスワード", type="password", key="login_password_input", help="パスワードを入力してください")
+        submitted = st.form_submit_button("ログイン", type="primary", use_container_width=True)
+        
+        if submitted:
+            # 認証チェック
+            user = authenticate_user(login_id, login_password)
+            if user:
+                st.session_state.authenticated = True
+                st.session_state.login_error = False
+                st.session_state.user_id = user['id']
+                st.session_state.username = user['username']
+                st.rerun()
+            else:
+                st.session_state.login_error = True
+                st.rerun()
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# ログアウト機能
+def logout():
+    """ログアウト処理"""
+    st.session_state.authenticated = False
+    st.session_state.login_error = False
+    st.session_state.user_id = None
+    st.session_state.username = None
+    if 'current_page' in st.session_state:
+        del st.session_state.current_page
+    st.rerun()
+
+# 認証チェック：ログインしていない場合はログイン画面を表示
+if not st.session_state.authenticated:
+    show_login_page()
+    st.stop()  # 以降のコードを実行しない
 
 # --- サイドバーの背景色やラジオボタンの視認性向上のためのカスタムCSS ---
 st.markdown(
@@ -121,6 +286,27 @@ st.markdown(
 
 # --- サイドバーのナビゲーション ---
 with st.sidebar:
+    # ユーザー名表示
+    if st.session_state.get('username'):
+        st.markdown(
+            f"""
+            <div style="
+                color: #fff;
+                font-size: 1.1em;
+                font-weight: bold;
+                text-align: center;
+                background: linear-gradient(90deg, #1565c0 60%, #1976d2 100%);
+                padding: 0.5em 0.8em;
+                border-radius: 0.5em;
+                margin-bottom: 0.7em;
+                border-left: 4px solid #fff;
+                ">
+                👤 {st.session_state.username}
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    
     # "メニュー" の視認性を上げるためにHTMLで太字・大きめ・影付き・余白付きで表示
     st.markdown(
         """
@@ -157,6 +343,22 @@ with st.sidebar:
         key="sidebar_nav",
         help="ページを選択してください"
     )
+    
+    # ログアウトボタン
+    st.markdown("---")
+    st.markdown(
+        """
+        <style>
+        .logout-button {
+            width: 100%;
+            margin-top: 1rem;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    if st.button("🚪 ログアウト", key="logout_button", use_container_width=True):
+        logout()
 
 # セッション状態でページを管理
 if 'current_page' not in st.session_state:

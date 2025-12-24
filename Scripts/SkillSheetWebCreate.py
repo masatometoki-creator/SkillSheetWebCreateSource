@@ -115,9 +115,19 @@ def init_database():
             graduation_date TEXT,
             self_pr TEXT,
             qualifications TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            login_user_id INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (login_user_id) REFERENCES users (id)
         )
     ''')
+    # login_user_idカラムが存在しない場合は追加
+    cursor.execute("PRAGMA table_info(user_info)")
+    existing_cols = [row[1] for row in cursor.fetchall()]
+    if 'login_user_id' not in existing_cols:
+        try:
+            cursor.execute("ALTER TABLE user_info ADD COLUMN login_user_id INTEGER")
+        except Exception as e:
+            pass
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS skills (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -163,16 +173,20 @@ def save_to_database(data):
     conn = sqlite3.connect(DB_PATH, isolation_level="EXCLUSIVE")
     cursor = conn.cursor()
     try:
+        # ログインユーザーIDを取得
+        login_user_id = st.session_state.get('user_id')
+        
         cursor.execute('''
             INSERT INTO user_info (name, name_kana, transportation, nearest_station, 
                                   access_method, access_time, gender, birth_date, 
-                                  final_education, graduation_date, self_pr, qualifications)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                  final_education, graduation_date, self_pr, qualifications, login_user_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             data['name'], data['name_kana'], data['transportation'], data['nearest_station'],
             data['access_method'], data['access_time'], data['gender'], data['birth_date'],
             data['final_education'], data['graduation_date'], data['self_pr'],
-            ",".join([q for q in data['qualifications'] if isinstance(q, str) and q.strip()])
+            ",".join([q for q in data['qualifications'] if isinstance(q, str) and q.strip()]),
+            login_user_id
         ))
         user_info_id = cursor.lastrowid
         for lang, years in zip(data['languages'], data['language_years']):
