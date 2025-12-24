@@ -45,16 +45,35 @@ def init_users_table():
                 login_id TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
                 username TEXT NOT NULL,
+                role TEXT NOT NULL DEFAULT '一般',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+        # 既存テーブルへのマイグレーション
+        cursor.execute("PRAGMA table_info(users)")
+        existing_cols = [row[1] for row in cursor.fetchall()]
+        
+        # usernameカラムが存在しない場合は追加
+        if 'username' not in existing_cols:
+            try:
+                cursor.execute("ALTER TABLE users ADD COLUMN username TEXT NOT NULL DEFAULT ''")
+            except Exception as e:
+                pass
+        
+        # roleカラムが存在しない場合は追加
+        if 'role' not in existing_cols:
+            try:
+                cursor.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT '一般'")
+            except Exception as e:
+                pass
+        
         # デフォルトユーザーが存在しない場合は作成
         cursor.execute("SELECT COUNT(*) FROM users")
         if cursor.fetchone()[0] == 0:
             cursor.execute('''
-                INSERT INTO users (login_id, password_hash, username)
-                VALUES (?, ?, ?)
-            ''', ('admin', hash_password('admin123'), '管理者'))
+                INSERT INTO users (login_id, password_hash, username, role)
+                VALUES (?, ?, ?, ?)
+            ''', ('admin', hash_password('admin123'), '管理者', '管理者'))
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -68,11 +87,11 @@ def authenticate_user(login_id, password):
     cursor = conn.cursor()
     try:
         cursor.execute('''
-            SELECT id, login_id, password_hash, username FROM users WHERE login_id = ?
+            SELECT id, login_id, password_hash, username, role FROM users WHERE login_id = ?
         ''', (login_id,))
         user = cursor.fetchone()
         if user and hash_password(password) == user[2]:
-            return {'id': user[0], 'login_id': user[1], 'username': user[3]}
+            return {'id': user[0], 'login_id': user[1], 'username': user[3], 'role': user[4]}
         return None
     except Exception as e:
         st.error(f"認証エラー: {str(e)}")
@@ -166,6 +185,7 @@ def show_login_page():
                 st.session_state.login_error = False
                 st.session_state.user_id = user['id']
                 st.session_state.username = user['username']
+                st.session_state.role = user['role']
                 st.rerun()
             else:
                 st.session_state.login_error = True
@@ -181,6 +201,7 @@ def logout():
     st.session_state.login_error = False
     st.session_state.user_id = None
     st.session_state.username = None
+    st.session_state.role = None
     if 'current_page' in st.session_state:
         del st.session_state.current_page
     st.rerun()
@@ -286,8 +307,10 @@ st.markdown(
 
 # --- サイドバーのナビゲーション ---
 with st.sidebar:
-    # ユーザー名表示
+    # ユーザー名と権限表示
     if st.session_state.get('username'):
+        role_display = "👑 管理者" if st.session_state.get('role') == "管理者" else "👤 一般"
+        username = st.session_state.username
         st.markdown(
             f"""
             <div style="
@@ -301,7 +324,7 @@ with st.sidebar:
                 margin-bottom: 0.7em;
                 border-left: 4px solid #fff;
                 ">
-                👤 {st.session_state.username}
+                {username} ({role_display})
             </div>
             """,
             unsafe_allow_html=True
@@ -333,6 +356,9 @@ with st.sidebar:
         "📊 データ参照・管理",
         "✏️ スキルシート更新"
     ]
+    # 管理者のみ「ユーザー管理」メニューを表示
+    if st.session_state.get('role') == "管理者":
+        nav_options.append("👥 ユーザー管理")
     # セッションの現在ページに応じてラジオの選択位置を同期
     current_index = nav_options.index(st.session_state.get("current_page", "🏠 ホーム")) if st.session_state.get("current_page", "🏠 ホーム") in nav_options else 0
     # ラジオボタンのラベルが背景につぶれないようhelp引数で余白を追加
@@ -519,6 +545,15 @@ elif st.session_state.current_page == "✏️ スキルシート更新":
     # スキルシート更新ページの内容を直接実行
     update_path = os.path.join(os.path.dirname(__file__), "UpdatePageEnhanced.py")
     exec(open(update_path, encoding="utf-8").read())
+elif st.session_state.current_page == "👥 ユーザー管理":
+    # 管理者以外はユーザー管理ページへアクセス不可
+    if st.session_state.get('role') != "管理者":
+        st.error("ユーザー管理ページへのアクセス権限がありません。ホームに戻ります。")
+        st.session_state.current_page = "🏠 ホーム"
+        st.rerun()
+    else:
+        user_mgmt_path = os.path.join(os.path.dirname(__file__), "UserManagementPage.py")
+        exec(open(user_mgmt_path, encoding="utf-8").read())
 
 
 
